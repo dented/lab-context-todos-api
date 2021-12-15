@@ -7,14 +7,18 @@ const actions = {
   setTodos: (payload) => ({ type: 'setTodos', payload }),
   unsetTodos: () => ({ type: 'unsetTodos' }),
   setTodo: (payload) => ({ type: 'setTodo', payload }),
-  unsetTodo: () => ({ type: 'unsetTodo' })
+  unsetTodo: () => ({ type: 'unsetTodo' }),
+  addTodoItem: (payload) => ({ type: 'addTodoItem', payload }),
+  updateTodoItem: (payload) => ({ type: 'updateTodoItem', payload }),
+  deleteTodoItem: (payload) => ({ type: 'deleteTodoItem', payload })
 }
 
 const api = (dispatch) => ({
-  getTodos: () => {
+  getTodos: (params = {}) => {
     axios({
       method: 'GET',
-      url: 'https://fswdi-api-todos.herokuapp.com/api/todos'
+      url: 'https://fswdi-api-todos.herokuapp.com/api/todos',
+      params
     }).then((resp) => {
       dispatch(actions.setTodos(resp.data))
     })
@@ -26,24 +30,91 @@ const api = (dispatch) => ({
     method: 'POST',
     url: 'https://fswdi-api-todos.herokuapp.com/api/todos',
     data: values
-  }).then((resp) => {
-    resolve(resp)
-  }).catch((err) => {
-    reject(err)
-  })),
+  })
+    .then((resp) => {
+      resolve(resp)
+    })
+    .catch((err) => {
+      reject(err)
+    })),
+  updateTodo: (TodoId, values) => new Promise((resolve, reject) => axios({
+    method: 'PUT',
+    url: `https://fswdi-api-todos.herokuapp.com/api/todos/${TodoId}`,
+    data: values
+  })
+    .then((resp) => {
+      dispatch(actions.setTodo(resp.data))
+      resolve(resp)
+    })
+    .catch((err) => {
+      dispatch(actions.setTodo({ todo: null }))
+      reject(err)
+    })),
   getTodo: (TodoId) => {
     axios({
       method: 'GET',
       url: `https://fswdi-api-todos.herokuapp.com/api/todos/${TodoId}`
-    }).then((resp) => {
-      dispatch(actions.setTodo(resp.data))
-    }).catch(() => {
-      dispatch(actions.setTodo({ todo: null }))
     })
+      .then((resp) => {
+        dispatch(actions.setTodo(resp.data))
+      })
+      .catch(() => {
+        dispatch(actions.setTodo({ todo: null }))
+      })
   },
   resetTodo: () => {
     dispatch(actions.unsetTodo())
-  }
+  },
+  deleteTodo: (TodoId) => new Promise((resolve, reject) => axios({
+    method: 'DELETE',
+    url: `https://fswdi-api-todos.herokuapp.com/api/todos/${TodoId}`
+  })
+    .then((resp) => {
+      resolve(resp)
+    })
+    .catch((err) => {
+      reject(err)
+    }))
+})
+
+const todoItemAPI = (dispatch) => ({
+  createTodoItem: (todoID, values) => new Promise((resolve, reject) => axios({
+    method: 'POST',
+    url: `https://fswdi-api-todos.herokuapp.com/api/todos/${todoID}/todo-items`,
+    data: values
+  })
+    .then((resp) => {
+      dispatch(actions.addTodoItem(resp.data))
+      resolve(resp)
+    })
+    .catch((err) => {
+      dispatch(actions.addTodoItem({ todoItem: null }))
+      reject(err)
+    })),
+  updateTodoItem: (todoId, todoItemId, values) => new Promise((resolve, reject) => axios({
+    method: 'PUT',
+    url: `https://fswdi-api-todos.herokuapp.com/api/todos/${todoId}/todo-items/${todoItemId}`,
+    data: values
+  })
+    .then((resp) => {
+      dispatch(actions.updateTodoItem(resp.data))
+      resolve(resp)
+    })
+    .catch((err) => {
+      dispatch(actions.updateTodoItem({ todoItem: null }))
+      reject(err)
+    })),
+  deleteTodoItem: (todoId, todoItemId) => new Promise((resolve, reject) => axios({
+    method: 'DELETE',
+    url: `https://fswdi-api-todos.herokuapp.com/api/todos/${todoId}/todo-items/${todoItemId}`
+  })
+    .then((resp) => {
+      dispatch(actions.deleteTodoItem({ todoItemId }))
+      resolve(resp)
+    })
+    .catch((err) => {
+      reject(err)
+    }))
 })
 
 const initialState = {
@@ -75,6 +146,35 @@ const reducer = (state, action) => {
         draft.show = undefined
       })
     }
+    case 'addTodoItem': {
+      return produce(state, (draft) => {
+        draft.show.todo.TodoItems.push(action.payload.todoItem)
+      })
+    }
+    case 'updateTodoItem': {
+      return produce(state, (draft) => {
+        const foundIndex = draft.show.todo.TodoItems.findIndex(
+          (item) => item.id === action.payload.todoItem.id
+        )
+
+        if (foundIndex !== -1) {
+          draft.show.todo.TodoItems[foundIndex] = action.payload.todoItem
+        }
+      })
+    }
+
+    case 'deleteTodoItem': {
+      return produce(state, (draft) => {
+        const foundIndex = draft.show.todo.TodoItems.findIndex(
+          (item) => item.id === action.payload.todoItemId
+        )
+
+        if (foundIndex !== -1) {
+          draft.show.todo.TodoItems.splice(foundIndex, 1)
+        }
+      })
+    }
+
     default: {
       throw new Error(`Unhandled action type: ${action.type}`)
     }
@@ -84,11 +184,15 @@ const reducer = (state, action) => {
 const TodosContext = createContext()
 const TodosProvider = ({ children }) => {
   const [todos, dispatch] = useReducer(reducer, initialState)
-  return <TodosContext.Provider value={{ todos, dispatch }}>{children}</TodosContext.Provider>
+  return (
+    <TodosContext.Provider value={{ todos, dispatch }}>
+      {children}
+    </TodosContext.Provider>
+  )
 }
 TodosProvider.propTypes = {
   children: PropTypes.element.isRequired
 }
 
-export { TodosProvider, api }
+export { TodosProvider, api, todoItemAPI }
 export default TodosContext
